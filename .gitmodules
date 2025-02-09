@@ -1,0 +1,3 @@
+[submodule "lightning-solid"]
+	path = lightning-solid
+	url = git@github.com:lightning-tv/solid.git
