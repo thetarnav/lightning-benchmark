@@ -1,0 +1,18 @@
+{
+  "name": "contestant-lightning-solid",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {},
+  "dependencies": {
+    "@lightningjs/renderer": "^2.11.1",
+    "@lightningtv/solid": "^2.7.0",
+    "solid-js": "^1.9.4"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.8",
+    "@babel/preset-typescript": "^7.26.0",
+    "@types/babel__core": "^7.20.5",
+    "babel-plugin-jsx-dom-expressions": "^0.39.6"
+  }
+}
