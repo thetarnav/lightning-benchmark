@@ -7,11 +7,12 @@ import preset_ts from '@babel/preset-typescript'
 import plugin_jsx from 'babel-plugin-jsx-dom-expressions'
 
 interface SolidPluginOptions {
-  generate?: 'dom' | 'ssr';
-  hydratable?: boolean;
+    moduleName?: string
+    generate?:   'dom' | 'ssr' | 'universal'
+    hydratable?: boolean
 }
 
-function preset_solid(context: any, options?: SolidPluginOptions) {
+function preset_solid(_: any, options?: SolidPluginOptions) {
     return {
         plugins: [
             [plugin_jsx, {
@@ -41,7 +42,7 @@ function plugin_solid(options: SolidPluginOptions = {}): bun.BunPlugin {
     return {
         name: 'bun-plugin-solid',
         setup(build) {
-            build.onLoad({filter: /\.(js|ts)x$/}, async args => {
+            build.onLoad({filter: /\.(j|t)sx$/}, async args => {
                 let src = await bun.file(args.path).text()
                 let res = await babel.transformAsync(src, {
                     filename: args.path,
@@ -68,5 +69,8 @@ bun.build({
     format:      'iife',
     conditions:  ['browser', 'production', 'solid'],
     minify:      true,
-    plugins:     [plugin_solid()],
+    plugins:     [plugin_solid({
+        moduleName: '@lightningtv/solid',
+        generate:   'universal',
+    })],
 })
