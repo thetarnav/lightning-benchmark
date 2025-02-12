@@ -26,38 +26,51 @@ async function main() {
     
     await build_lightning_solid.build()
 
+    async function handle_request(req: Request): Promise<Response> {
+
+        let url = new URL(req.url)
+                
+        if (url.pathname === '/') {
+            return new Response(`<!DOCTYPE html>
+            <html>
+                <head>
+                    <title>Lightning Solid</title>
+                </head>
+                <body>
+                    <div id="root"></div>
+                    <script src="index.js"></script>
+                </body>
+            </html>`, {
+                headers: {'Content-Type': 'text/html'}
+            })
+        }
+
+        // Serve static files from dist directory
+        let file = bun.file(lightning_solid_dir+'/dist/'+url.pathname)
+
+        if (await file.exists()) {
+            return new Response(file)
+        }
+
+        return new Response('Not found', {status: 404})
+    }
+
     const server = bun.serve({
         port: 3000,	
-        async fetch(req) {
-            const url = new URL(req.url)
-            
-            // Rebuild on each request to root
-            if (url.pathname === '/') {
-                return new Response(`<!DOCTYPE html>
-                <html>
-                    <head>
-                        <title>Lightning Solid</title>
-                    </head>
-                    <body>
-                        <div id="root"></div>
-                        <script src="index.js"></script>
-                    </body>
-                </html>`, {
-                    headers: {'Content-Type': 'text/html'}
-                })
+        async fetch(req): Promise<Response> {
+
+            let url = new URL(req.url)
+
+            try {
+                let res = await handle_request(req)
+                console.log('SERVER:', req.method, url.pathname, res.status)
+                return res
+            } catch (e) {
+                console.error('SERVER:', req.method, url.pathname, e)
+                return new Response('Server Error', {status: 500})
             }
-    
-            // Serve static files from dist directory
-            const file = bun.file(lightning_solid_dir+'/dist/'+url.pathname)
-    
-            if (await file.exists()) {
-                return new Response(file)
-            }
-    
-            return new Response('Not found', {status: 404})
         },
     })
-    const server_url = `http://localhost:${server.port}`
 
     const browser = await pw.chromium.launch({
         channel:  'chrome',
@@ -86,8 +99,8 @@ async function main() {
     console.log('CDPSession created')
 
     // Website
-    await page.goto(server_url, {waitUntil: 'networkidle'})
-    console.log(`Website ${server_url} loaded`)
+    await page.goto(server.url.toString(), {waitUntil: 'networkidle'})
+    console.log(`Website ${server.url} loaded`)
 
     // CPU Throttling
     await force_gc(page)
