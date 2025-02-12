@@ -29,6 +29,7 @@ const ANSI_YELLOW  = '\x1b[33m'
 const ANSI_BLUE    = '\x1b[34m'
 const ANSI_MAGENTA = '\x1b[35m'
 const ANSI_CYAN    = '\x1b[36m'
+const ANSI_WHITE   = '\x1b[37m'
 const ANSI_GRAY    = '\x1b[90m'
 
 let _log_max_topic_len = 4
@@ -80,10 +81,10 @@ function serve() {
 
             try {
                 let res = await handle_request(req)
-                log('SERVE', '%s %s %o', req.method, url.pathname, res.status)
+                log('SERVE', `${ANSI_MAGENTA}%s${ANSI_RESET} %s %o`, req.method, url.pathname, res.status)
                 return res
             } catch (e) {
-                error('SERVE', '%s %s %o\n%o', req.method, url.pathname, 500, e)
+                error('SERVE', `${ANSI_MAGENTA}%s${ANSI_RESET} %s %o\n%o`, req.method, url.pathname, 500, e)
                 return new Response('Server Error', {status: 500})
             }
         },
@@ -115,8 +116,15 @@ async function main() {
 
     // Console messages
     page.on('console', msg => {
+        let type = msg.type()
+        let color = ANSI_WHITE
+        switch (type) {
+        case 'error':   color = ANSI_RED    ;break
+        case 'warning': color = ANSI_YELLOW ;break
+        case 'debug':   color = ANSI_BLUE   ;break
+        }
         for (let arg of msg.args()) {
-            log('PAGE', arg.toString())
+            log('PAGE', `${color}[${type}]:${ANSI_RESET} ${arg}`)
         }
     })
     
