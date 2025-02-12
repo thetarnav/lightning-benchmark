@@ -1,4 +1,5 @@
-import * as bun from 'bun'
+import * as bun  from 'bun'
+import * as path from 'node:path'
 
 import * as babel from '@babel/core'
 // @ts-expect-error
@@ -61,16 +62,17 @@ function plugin_solid(options: SolidPluginOptions = {}): bun.BunPlugin {
     }
 }
 
-
-bun.build({
-    entrypoints: ['./src/index.tsx'],
-    outdir:      'dist',
-    target:      'browser',
-    format:      'iife',
-    conditions:  ['browser', 'production', 'solid'],
-    minify:      true,
-    plugins:     [plugin_solid({
-        moduleName: '@lightningtv/solid',
-        generate:   'universal',
-    })],
-})
+export async function build(): Promise<void> {
+    await bun.build({
+        entrypoints: [path.join(import.meta.dir, 'src', 'index.tsx')],
+        outdir:      path.join(import.meta.dir, 'dist'),
+        target:      'browser',
+        format:      'iife',
+        conditions:  ['browser', 'production', 'solid'],
+        minify:      true,
+        plugins:     [plugin_solid({
+            moduleName: '@lightningtv/solid',
+            generate:   'universal',
+        })],
+    })
+}

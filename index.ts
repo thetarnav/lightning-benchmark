@@ -1,8 +1,13 @@
-import * as pw from 'playwright-core'
+import * as path from 'node:path'
+import * as bun  from 'bun'
+import * as pw   from 'playwright-core'
+
+import * as build_lightning_solid from './contestants/lightning-solid/build.ts'
+
+const lightning_solid_dir = path.join(import.meta.dir, 'contestants', 'lightning-solid')
 
 
 const CPU_THROTTLING = 20
-const URL            = 'http://localhost:5173'
 
 
 function force_gc(page: pw.Page): Promise<void> {
@@ -17,7 +22,42 @@ function sleep(timeout?: number): Promise<void> {
     return new Promise(r => setTimeout(r, timeout))
 }
 
-async function main() {    
+async function main() {   
+    
+    await build_lightning_solid.build()
+
+    const server = bun.serve({
+        port: 3000,	
+        async fetch(req) {
+            const url = new URL(req.url)
+            
+            // Rebuild on each request to root
+            if (url.pathname === '/') {
+                return new Response(`<!DOCTYPE html>
+                <html>
+                    <head>
+                        <title>Lightning Solid</title>
+                    </head>
+                    <body>
+                        <div id="root"></div>
+                        <script src="index.js"></script>
+                    </body>
+                </html>`, {
+                    headers: {'Content-Type': 'text/html'}
+                })
+            }
+    
+            // Serve static files from dist directory
+            const file = bun.file(lightning_solid_dir+'/dist/'+url.pathname)
+    
+            if (await file.exists()) {
+                return new Response(file)
+            }
+    
+            return new Response('Not found', {status: 404})
+        },
+    })
+    const server_url = `http://localhost:${server.port}`
 
     const browser = await pw.chromium.launch({
         channel:  'chrome',
@@ -46,8 +86,8 @@ async function main() {
     console.log('CDPSession created')
 
     // Website
-    await page.goto(URL, {waitUntil: 'networkidle'})
-    console.log(`Website ${URL} loaded`)
+    await page.goto(server_url, {waitUntil: 'networkidle'})
+    console.log(`Website ${server_url} loaded`)
 
     // CPU Throttling
     await force_gc(page)
@@ -85,6 +125,8 @@ async function main() {
     } catch (error) {
         console.error("ERROR closing page", error)
     }
+
+    await server.stop(true)
 }
 
 
