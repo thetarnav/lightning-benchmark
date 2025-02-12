@@ -22,31 +22,27 @@ function sleep(timeout?: number): Promise<void> {
     return new Promise(r => setTimeout(r, timeout))
 }
 
-async function main() {   
-    
-    await build_lightning_solid.build()
+function serve() {
 
     async function handle_request(req: Request): Promise<Response> {
-
+        
         let url = new URL(req.url)
-                
+        
+        // Rebuild on each request to /
         if (url.pathname === '/') {
-            return new Response(`<!DOCTYPE html>
-            <html>
-                <head>
-                    <title>Lightning Solid</title>
-                </head>
-                <body>
-                    <div id="root"></div>
-                    <script src="index.js"></script>
-                </body>
-            </html>`, {
-                headers: {'Content-Type': 'text/html'}
-            })
+            let before = performance.now()
+            await build_lightning_solid.build()
+            console.log(`Built in ${(performance.now()-before).toFixed()}ms`)
+        }
+
+        // Handle / -> /index.html
+        let pathname = url.pathname
+        if (pathname.endsWith('/')) {
+            pathname += 'index.html'
         }
 
         // Serve static files from dist directory
-        let file = bun.file(lightning_solid_dir+'/dist/'+url.pathname)
+        let file = bun.file(lightning_solid_dir+'/dist/'+pathname)
 
         if (await file.exists()) {
             return new Response(file)
@@ -72,6 +68,15 @@ async function main() {
         },
     })
 
+    console.log(`Server started on ${server.url}`)
+
+    return server
+}
+
+async function main() {
+
+    const server = serve()
+
     const browser = await pw.chromium.launch({
         channel:  'chrome',
         headless: false,
@@ -96,7 +101,7 @@ async function main() {
     
     // CDPSession
     const client = await page.context().newCDPSession(page)
-    console.log('CDPSession created')
+    console.log('CDP session created')
 
     // Website
     await page.goto(server.url.toString(), {waitUntil: 'networkidle'})

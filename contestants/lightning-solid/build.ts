@@ -64,7 +64,7 @@ function plugin_solid(options: SolidPluginOptions = {}): bun.BunPlugin {
 
 export async function build(): Promise<void> {
     await bun.build({
-        entrypoints: [path.join(import.meta.dir, 'src', 'index.tsx')],
+        entrypoints: [path.join(import.meta.dir, 'src', 'index.html')],
         outdir:      path.join(import.meta.dir, 'dist'),
         target:      'browser',
         format:      'iife',
