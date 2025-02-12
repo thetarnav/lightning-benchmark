@@ -54,15 +54,13 @@ function DirectUpdate(): s.JSX.Element {
         }
     }
 
-    window.run_bench = handleTPress
-
-    // const interval = setInterval(() => {
-    //     handleTPress()
-    // }, 2000)
-
-    // s.onCleanup(() => {
-    //     clearInterval(interval)
-    // })
+    s.onMount(() => {
+        window.addEventListener('keypress', e => {
+            if (e.key === 'Enter') {
+                handleTPress()
+            }
+        })
+    })
 
     let container!: l.ElementNode
     return (

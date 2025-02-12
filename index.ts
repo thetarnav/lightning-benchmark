@@ -147,10 +147,8 @@ async function main() {
         ],
     })
 
-    // Benchmark
-    await page.evaluate(
-        /*js*/`(window.run_bench(), new Promise(resolve => requestAnimationFrame(() => resolve())))`
-    )
+    // Run Benchmark
+    await page.keyboard.press('Enter')
 
     // End Benchmark
     await sleep(40)
