@@ -54,13 +54,15 @@ function DirectUpdate(): s.JSX.Element {
         }
     }
 
-    const interval = setInterval(() => {
-        handleTPress()
-    }, 2000)
+    window.run_bench = handleTPress
 
-    s.onCleanup(() => {
-        clearInterval(interval)
-    })
+    // const interval = setInterval(() => {
+    //     handleTPress()
+    // }, 2000)
+
+    // s.onCleanup(() => {
+    //     clearInterval(interval)
+    // })
 
     let container!: l.ElementNode
     return (

@@ -34,6 +34,7 @@ const ANSI_GRAY    = '\x1b[90m'
 
 let _log_pad_len = 5
 const _log_pad_topic = (topic: string) => topic + ' '.repeat((_log_pad_len = Math.max(_log_pad_len, topic.length)) - topic.length) 
+
 function log(topic: string, msg: string, ...args: any[]): void {
     console.log(`${ANSI_GRAY}[${_log_pad_topic(topic)}]: ${ANSI_RESET}${msg}`, ...args)
 }
@@ -103,7 +104,6 @@ async function main() {
             '--window-size=1000,800',
             '--js-flags=--expose-gc',
             '--enable-benchmarking',
-            // '--enable-experimental-web-platform-features',
         ],
     })
     
@@ -136,7 +136,7 @@ async function main() {
     await set_cpu_throttling(client, CPU_THROTTLING)
     log('BENCH', `CPU Throttling ${CPU_THROTTLING} enabled`)
 
-    // Start Benchmark
+    // Start Tracing
     await browser.startTracing(page, {
         path:        './output/trace.json',
         screenshots: false,
@@ -148,7 +148,9 @@ async function main() {
     })
 
     // Benchmark
-    log('BENCH', await page.title())
+    await page.evaluate(
+        /*js*/`(window.run_bench(), new Promise(resolve => requestAnimationFrame(() => resolve())))`
+    )
 
     // End Benchmark
     await sleep(40)
