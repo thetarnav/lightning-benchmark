@@ -53,7 +53,7 @@ function serve() {
         if (url.pathname === '/') {
             let before = performance.now()
             await build_lightning_solid.build()
-            log('SERVE', `Built in ${(performance.now()-before).toFixed()}ms`)
+            log('SERVE', 'Built in %oms', Math.round(performance.now()-before))
         }
 
         // Handle / -> /index.html
@@ -80,16 +80,16 @@ function serve() {
 
             try {
                 let res = await handle_request(req)
-                log('SERVE', '%s %s %n', req.method, url.pathname, res.status)
+                log('SERVE', '%s %s %o', req.method, url.pathname, res.status)
                 return res
             } catch (e) {
-                error('SERVE', '%s %s %n\n%o', req.method, url.pathname, 500, e)
+                error('SERVE', '%s %s %o\n%o', req.method, url.pathname, 500, e)
                 return new Response('Server Error', {status: 500})
             }
         },
     })
 
-    log('SERVE', `Server started on ${server.url}`)
+    log('SERVE', `Server started on ${ANSI_BLUE}${server.url}${ANSI_RESET}`)
 
     return server
 }
@@ -126,7 +126,7 @@ async function main() {
 
     // Website
     await page.goto(server.url.toString(), {waitUntil: 'networkidle'})
-    log('BENCH', `Website ${server.url} loaded`)
+    log('BENCH', `Website ${ANSI_BLUE}${server.url}${ANSI_RESET} loaded`)
 
     // CPU Throttling
     await force_gc(page)
