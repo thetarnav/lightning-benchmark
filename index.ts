@@ -32,16 +32,13 @@ const ANSI_CYAN    = '\x1b[36m'
 const ANSI_WHITE   = '\x1b[37m'
 const ANSI_GRAY    = '\x1b[90m'
 
-let _log_max_topic_len = 4
+let _log_pad_len = 5
+const _log_pad_topic = (topic: string) => topic + ' '.repeat((_log_pad_len = Math.max(_log_pad_len, topic.length)) - topic.length) 
 function log(topic: string, msg: string, ...args: any[]): void {
-    _log_max_topic_len = Math.max(_log_max_topic_len, topic.length)
-    let padding = ' '.repeat(_log_max_topic_len - topic.length)
-    console.log(`${ANSI_GRAY}[${topic}${padding}]: ${ANSI_RESET}${msg}`, ...args)
+    console.log(`${ANSI_GRAY}[${_log_pad_topic(topic)}]: ${ANSI_RESET}${msg}`, ...args)
 }
 function error(topic: string, msg: string, ...args: any[]): void {
-    _log_max_topic_len = Math.max(_log_max_topic_len, topic.length)
-    let padding = ' '.repeat(_log_max_topic_len - topic.length)
-    console.error(`${ANSI_RED}[${topic}${padding}]: ${ANSI_RESET}${msg}`, ...args)
+    console.error(`${ANSI_RED}[${_log_pad_topic(topic)}]: ${ANSI_RESET}${msg}`, ...args)
 }
 
 function serve() {
