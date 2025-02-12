@@ -123,9 +123,7 @@ async function main() {
         case 'warning': color = ANSI_YELLOW ;break
         case 'debug':   color = ANSI_BLUE   ;break
         }
-        for (let arg of msg.args()) {
-            log('PAGE', `${color}[${type}]:${ANSI_RESET} ${arg}`)
-        }
+        log('PAGE', `${color}[${type}]:${ANSI_RESET} ${msg.text()}`)
     })
     
     // CDPSession
