@@ -54,12 +54,13 @@ function DirectUpdate(): s.JSX.Element {
         }
     }
 
-    s.onMount(() => {
-        window.addEventListener('keypress', e => {
-            if (e.key === 'Enter') {
-                handleTPress()
-            }
-        })
+    window.addEventListener('keypress', e => {
+        if (e.key === 'Enter') {
+            let start = performance.now()
+            handleTPress()
+            let end = performance.now() 
+            console.log(start, end, end-start)
+        }
     })
 
     let container!: l.ElementNode

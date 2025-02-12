@@ -4,6 +4,8 @@ import * as pw   from 'playwright-core'
 
 import * as build_lightning_solid from './contestants/lightning-solid/build.ts'
 
+import * as trace from './trace_events.ts'
+
 const lightning_solid_dir = path.join(import.meta.dir, 'contestants', 'lightning-solid')
 
 
@@ -40,6 +42,10 @@ function log(topic: string, msg: string, ...args: any[]): void {
 }
 function error(topic: string, msg: string, ...args: any[]): void {
     console.error(`${ANSI_RED}[${_log_pad_topic(topic)}]: ${ANSI_RESET}${msg}`, ...args)
+}
+
+function assert(condition: boolean, msg?: string): asserts condition {
+    if (!condition) throw new Error(msg || 'Assertion failed')
 }
 
 function serve() {
@@ -136,9 +142,11 @@ async function main() {
     await set_cpu_throttling(client, CPU_THROTTLING)
     log('BENCH', `CPU Throttling ${CPU_THROTTLING} enabled`)
 
+    let tracefile = bun.file('./output/trace.json')
+
     // Start Tracing
     await browser.startTracing(page, {
-        path:        './output/trace.json',
+        path:        tracefile.name,
         screenshots: false,
         categories:  [
             'blink.user_timing',
@@ -157,21 +165,98 @@ async function main() {
 
     log('BENCH', 'Bench ended')
 
+    read_results()
+
     // For mem tests
     // await client.send("Performance.enable");
     // let result = ((await page.evaluate("performance.measureUserAgentSpecificMemory()")) as any).bytes / 1024 / 1024
     // console.log('mem', result)
 
     // End
-    try {
-        await page.close()
-        await browser.close()
-    } catch (e) {
-        error('BENCH', 'ERROR closing page: %o', e)
-    }
-
-    await server.stop(true)
+    page.close()
+    browser.close()
+    server.stop(true)
 }
+
+async function read_results() {
+
+    let tracefile = bun.file('./output/trace.json')
+
+    // Parse result trace
+    {
+        let result = trace.parse_trace_events_file(await tracefile.text())
+
+        let pid:   undefined | number
+        let start: undefined | number
+        let end:   undefined | number
+        let durations = {
+            'EventDispatch':      0,
+            'Layout':             0,
+            'FunctionCall':       0,
+            'FireAnimationFrame': 0,
+            'TimerFire':          0,
+            'Commit':             0,
+        }
+
+        loop: for (let e of result.traceEvents) {
+
+            if (typeof e.dur !== 'number' ||
+                (start != null && e.ts < start)
+            ) {
+                continue
+            }
+
+            switch (e.name) {
+            case 'EventDispatch':
+                if (e.args.data?.type === 'keypress') {
+                    assert(start == null || pid == null, 'Multiple keypress events')
+                    start = e.ts
+                    pid   = e.pid
+                }
+                break
+            case 'Layout':
+            case 'FunctionCall':
+            case 'FireAnimationFrame':
+            case 'TimerFire':
+                if (e.ph === 'X' && pid != null && e.pid === pid) {
+                    durations[e.name] += e.dur
+                }
+                break
+            case 'Commit':
+                if (e.ph === 'X' && pid != null && e.pid === pid) {
+                    assert(start != null)
+                    durations[e.name] += e.dur
+                    end = e.ts+e.dur
+                    break loop
+                }
+                break
+            // case 'HitTest':
+            // case 'Paint':
+            //     if (e.ph === 'X') {
+            //         console.log('%s: %d', e.name, e.dur)
+            //     }
+            //     break
+            case 'RequestAnimationFrame':
+                console.log('%s: %d >- %d -> %d', e.name, e.ts, e.dur, e.ts + e.dur)
+                break
+            }
+        }
+
+        assert(start != null, 'Did not found starting user event')
+        assert(end != null, 'Did not found ending commit event')
+
+        let duration = (end-start) / 1000
+        
+        console.log({
+            start,
+            end,
+            durations,
+            duration,
+        })
+    }
+}
+
+// read_results()
 
 
 main()
