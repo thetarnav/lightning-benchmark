@@ -10,6 +10,8 @@ const lightning_solid_dir = path.join(import.meta.dir, 'contestants', 'lightning
 
 
 const CPU_THROTTLING = 20
+const WARMUP_COUNT   = 10
+const TEST_COUNT     = 20
 
 
 function force_gc(page: pw.Page): Promise<void> {
@@ -22,6 +24,10 @@ function set_cpu_throttling(client: pw.CDPSession, rate: number) {
 
 function sleep(timeout?: number): Promise<void> {
     return new Promise(r => setTimeout(r, timeout))
+}
+
+function ns_to_ms(ns: number): number {
+    return Math.round(ns/1000)
 }
 
 const _utf8_decoder = new TextDecoder()
@@ -83,7 +89,7 @@ function serve() {
     }
 
     const server = bun.serve({
-        port: 3000,	
+        port: 3000,
         async fetch(req): Promise<Response> {
 
             let url = new URL(req.url)
@@ -106,8 +112,10 @@ function serve() {
 
 async function main() {
 
+    // Server
     const server = serve()
 
+    // Browser
     const browser = await pw.chromium.launch({
         channel:  'chrome',
         headless: false,
@@ -117,65 +125,83 @@ async function main() {
             '--enable-benchmarking',
         ],
     })
-    
-    // Page
-    const page = await browser.newPage()
-    log('BENCH', 'Page created')
 
-    // Console messages
-    page.on('console', msg => {
-        let type = msg.type()
-        let color = ANSI_WHITE
-        switch (type) {
-        case 'error':   color = ANSI_RED    ;break
-        case 'warning': color = ANSI_YELLOW ;break
-        case 'debug':   color = ANSI_BLUE   ;break
+    let total_duration = 0
+
+    // Benchmark
+    for (let bench_i = 0; bench_i < TEST_COUNT; bench_i++) {
+
+        // Page
+        const page = await browser.newPage()
+        log('BENCH', '[%d] Page created', bench_i)
+    
+        // Console messages
+        page.on('console', msg => {
+            let type = msg.type()
+            let color = ANSI_WHITE
+            switch (type) {
+            case 'error':   color = ANSI_RED    ;break
+            case 'warning': color = ANSI_YELLOW ;break
+            case 'debug':   color = ANSI_BLUE   ;break
+            }
+            log('PAGE', `${color}[${type}]:${ANSI_RESET} ${msg.text()}`)
+        })
+        
+        // CDP Session
+        const client = await page.context().newCDPSession(page)
+        log('BENCH', '[%d] CDP session created', bench_i)
+    
+        // Website
+        await page.goto(server.url.toString(), {waitUntil: 'networkidle'})
+        log('BENCH', `[%d] Website ${ANSI_BLUE}${server.url}${ANSI_RESET} loaded`, bench_i)
+    
+        // Warmup
+        for (let warmup_i = 0; warmup_i < WARMUP_COUNT; warmup_i++) {
+            await page.keyboard.press('Enter')    
+            await page.keyboard.press('R')    
         }
-        log('PAGE', `${color}[${type}]:${ANSI_RESET} ${msg.text()}`)
-    })
+        log('BENCH', '[%d] Warmup done', bench_i)
     
-    // CDP Session
-    const client = await page.context().newCDPSession(page)
-    log('BENCH', 'CDP session created')
+        // CPU Throttling
+        await sleep(50)
+        await force_gc(page)
+        await set_cpu_throttling(client, CPU_THROTTLING)
+        log('BENCH', `[%d] CPU Throttling ${CPU_THROTTLING} enabled`, bench_i)
+    
+        // Start Tracing
+        await browser.startTracing(page, {
+            screenshots: false,
+            categories:  trace_categories_to_get_duration,
+        })
+    
+        // Run Test
+        await page.keyboard.press('Enter')
+        await page.evaluate('new Promise(r => requestAnimationFrame(r))')
+    
+        // End Test
+        // await sleep(100)
+        let trace_result = await browser.stopTracing()
+        await set_cpu_throttling(client, 1)
+    
+        
+        let tracefile = trace.parse_trace_events_file(utf8_decode(trace_result))
+        let duration = get_duration_from_tracefile(tracefile)
+        total_duration += duration
+        
+        log('BENCH', `[%d] Test ended, took %oms`, bench_i, ns_to_ms(duration))
+    
+        // For mem tests
+        // await client.send("Performance.enable");
+        // let result = ((await page.evaluate("performance.measureUserAgentSpecificMemory()")) as any).bytes / 1024 / 1024
+        // console.log('mem', result)
+    
+        // End
+        page.close()
+    }
 
-    // Website
-    await page.goto(server.url.toString(), {waitUntil: 'networkidle'})
-    log('BENCH', `Website ${ANSI_BLUE}${server.url}${ANSI_RESET} loaded`)
-
-    // CPU Throttling
-    await force_gc(page)
-    await set_cpu_throttling(client, CPU_THROTTLING)
-    log('BENCH', `CPU Throttling ${CPU_THROTTLING} enabled`)
-
-    // Start Tracing
-    await browser.startTracing(page, {
-        screenshots: false,
-        categories:  trace_categories_to_get_duration,
-    })
-
-    // Run Benchmark
-    await page.keyboard.press('Enter')
-
-    // End Benchmark
-    await sleep(40)
-    let trace_result = await browser.stopTracing()
-    await set_cpu_throttling(client, 1)
-
-    log('BENCH', 'Bench ended')
-
-
-    let tracefile = trace.parse_trace_events_file(utf8_decode(trace_result))
-    let duration = get_duration_from_tracefile(tracefile)
-
-    console.log(duration)
-
-    // For mem tests
-    // await client.send("Performance.enable");
-    // let result = ((await page.evaluate("performance.measureUserAgentSpecificMemory()")) as any).bytes / 1024 / 1024
-    // console.log('mem', result)
-
+    log('BENCH', `All tests done took %oms / %o = %oms avg`, ns_to_ms(total_duration), TEST_COUNT, ns_to_ms(total_duration/TEST_COUNT))
+    
     // End
-    page.close()
     browser.close()
     server.stop(true)
 }
@@ -221,7 +247,7 @@ function get_duration_from_tracefile(tracefile: trace.Tracefile): number {
     }
 
     assert(start != null, 'Did not found starting user event')
-    assert(end != null,   'Did not found ending commit event')
+    assert(end   != null, 'Did not found ending commit event')
 
     return end-start
 }

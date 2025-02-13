@@ -2,12 +2,19 @@ import {WebGlCoreRenderer} from '@lightningjs/renderer/webgl'
 import * as l from '@lightningtv/solid'
 import * as s from 'solid-js'
 
-function random(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min
+let seed = 12345
+
+function random(): number {
+    seed = (seed * 16807) % 2147483647
+    return (seed - 1) / 2147483646
 }
 
-function randomColor(): string {
-    return '0x' + Math.floor(Math.random() * 16777215).toString(16) + 'FF'
+function random_int(min: number, max: number): number {
+    return Math.floor(random() * (max - min + 1)) + min
+}
+
+function random_color(): string {
+    return '0x' + Math.floor(random() * 16777215).toString(16).padEnd(6, '0') + 'FF'
 }
 
 const HEIGHT = 600
@@ -26,46 +33,34 @@ function DirectUpdate(): s.JSX.Element {
 
     const [blocks, setBlocks] = s.createSignal<Block[]>([])
 
-    function handleTPress() {
-        if (blocks().length === 0) {
-            let blocks = []
-            for (let step = 0; step < 1000; step++) {
-                blocks.push({
-                    width:        random(50, 100),
-                    height:       random(50, 100),
-                    x:            random(0, WIDTH),
-                    y:            random(0, HEIGHT),
-                    borderRadius: random(0, 50),
-                    color:        randomColor(),
-                })
-            }
-            setBlocks(blocks)
-        } else {
-            // Direct updating
-            for (let step = 0; step < 1000; step++) {
-                let c = container.children[step]
-                c.width   = random(50, 100)
-                c.height  = random(50, 100)
-                c.x       = random(0, WIDTH)
-                c.y       = random(0, HEIGHT)
-                c.effects = {radius: {radius: random(0, 50)}}
-                c.color   = randomColor()
-            }
+    function update() {
+        let blocks = []
+        for (let step = 0; step < 1000; step++) {
+            blocks.push({
+                width:        random_int(50, 100),
+                height:       random_int(50, 100),
+                x:            random_int(0, WIDTH),
+                y:            random_int(0, HEIGHT),
+                borderRadius: random_int(0, 50),
+                color:        random_color(),
+            })
         }
+        setBlocks(blocks)
+    }
+
+    function clear() {
+        setBlocks([])
     }
 
     window.addEventListener('keypress', e => {
-        if (e.key === 'Enter') {
-            let start = performance.now()
-            handleTPress()
-            let end = performance.now() 
-            console.log(start, end, end-start)
+        switch (e.key) {
+        case 'R':     clear()  ;break
+        case 'Enter': update() ;break
         }
     })
 
-    let container!: l.ElementNode
     return (
-        <l.View ref={container} style={{color: l.hexColor('#f0f0f0')}}>
+        <l.View style={{color: l.hexColor('#f0f0f0')}}>
             <s.Index each={blocks()}>
             {(item) => (
                 <node
