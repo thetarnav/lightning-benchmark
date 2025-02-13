@@ -220,7 +220,7 @@ export interface Trace_Processor_Stats {
 
 export interface Trace_Event {
     args:  Args
-    cat:   Cat
+    cat:   Categories
     name:  Trace_Event_Name
     ph:    Bp
     pid:   number
@@ -390,7 +390,15 @@ export interface End_Data {
 
 export type Bp = 'B' | 'b' | 'e' | 'f' | 'I' | 'M' | 'n' | 's' | 'X'
 
-export type Cat = string
+export type Category =
+    | '__metadata'
+    | 'blink'
+    | 'v8'
+    | 'devtools.timeline'
+    | 'disabled-by-default-v8.gc'
+    | 'disabled-by-default-devtools.timeline'
+
+export type Categories = string
 
 export interface Id2 {
     local: string

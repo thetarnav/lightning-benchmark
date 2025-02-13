@@ -24,6 +24,11 @@ function sleep(timeout?: number): Promise<void> {
     return new Promise(r => setTimeout(r, timeout))
 }
 
+const _utf8_decoder = new TextDecoder()
+function utf8_decode(src: NodeJS.ArrayBufferView | ArrayBuffer): string {
+    return _utf8_decoder.decode(src)
+}
+
 const ANSI_RESET   = '\x1b[0m'
 const ANSI_RED     = '\x1b[31m'
 const ANSI_GREEN   = '\x1b[32m'
@@ -129,7 +134,7 @@ async function main() {
         log('PAGE', `${color}[${type}]:${ANSI_RESET} ${msg.text()}`)
     })
     
-    // CDPSession
+    // CDP Session
     const client = await page.context().newCDPSession(page)
     log('BENCH', 'CDP session created')
 
@@ -142,17 +147,10 @@ async function main() {
     await set_cpu_throttling(client, CPU_THROTTLING)
     log('BENCH', `CPU Throttling ${CPU_THROTTLING} enabled`)
 
-    let tracefile = bun.file('./output/trace.json')
-
     // Start Tracing
     await browser.startTracing(page, {
-        path:        tracefile.name,
         screenshots: false,
-        categories:  [
-            'blink.user_timing',
-            'devtools.timeline',
-            'disabled-by-default-devtools.timeline',
-        ],
+        categories:  trace_categories_to_get_duration,
     })
 
     // Run Benchmark
@@ -160,12 +158,16 @@ async function main() {
 
     // End Benchmark
     await sleep(40)
-    await browser.stopTracing()
+    let trace_result = await browser.stopTracing()
     await set_cpu_throttling(client, 1)
 
     log('BENCH', 'Bench ended')
 
-    read_results()
+
+    let tracefile = trace.parse_trace_events_file(utf8_decode(trace_result))
+    let duration = get_duration_from_tracefile(tracefile)
+
+    console.log(duration)
 
     // For mem tests
     // await client.send("Performance.enable");
@@ -178,85 +180,51 @@ async function main() {
     server.stop(true)
 }
 
-async function read_results() {
+const trace_categories_to_get_duration: trace.Category[] = [
+    // EventDispatch
+    'devtools.timeline',
+    // Commit
+    'disabled-by-default-devtools.timeline',
+]
 
-    let tracefile = bun.file('./output/trace.json')
+function get_duration_from_tracefile(tracefile: trace.Tracefile): number {
 
-    // Parse result trace
-    {
-        let result = trace.parse_trace_events_file(await tracefile.text())
+    let pid:   undefined | number
+    let start: undefined | number
+    let end:   undefined | number
 
-        let pid:   undefined | number
-        let start: undefined | number
-        let end:   undefined | number
-        let durations = {
-            'EventDispatch':      0,
-            'Layout':             0,
-            'FunctionCall':       0,
-            'FireAnimationFrame': 0,
-            'TimerFire':          0,
-            'Commit':             0,
+    loop: for (let e of tracefile.traceEvents) {
+
+        if (typeof e.dur !== 'number' ||
+            (start != null && e.ts < start) ||
+            e.ph != 'X'
+        ) {
+            continue
         }
 
-        loop: for (let e of result.traceEvents) {
-
-            if (typeof e.dur !== 'number' ||
-                (start != null && e.ts < start)
-            ) {
-                continue
+        switch (e.name) {
+        case 'EventDispatch':
+            if (e.args.data?.type === 'keypress') {
+                assert(start == null || pid == null, 'Multiple keypress events')
+                start = e.ts
+                pid   = e.pid
             }
-
-            switch (e.name) {
-            case 'EventDispatch':
-                if (e.args.data?.type === 'keypress') {
-                    assert(start == null || pid == null, 'Multiple keypress events')
-                    start = e.ts
-                    pid   = e.pid
-                }
-                break
-            case 'Layout':
-            case 'FunctionCall':
-            case 'FireAnimationFrame':
-            case 'TimerFire':
-                if (e.ph === 'X' && pid != null && e.pid === pid) {
-                    durations[e.name] += e.dur
-                }
-                break
-            case 'Commit':
-                if (e.ph === 'X' && pid != null && e.pid === pid) {
-                    assert(start != null)
-                    durations[e.name] += e.dur
-                    end = e.ts+e.dur
-                    break loop
-                }
-                break
-            // case 'HitTest':
-            // case 'Paint':
-            //     if (e.ph === 'X') {
-            //         console.log('%s: %d', e.name, e.dur)
-            //     }
-            //     break
-            case 'RequestAnimationFrame':
-                console.log('%s: %d >- %d -> %d', e.name, e.ts, e.dur, e.ts + e.dur)
-                break
+            break
+        case 'Commit':
+            if (pid != null && e.pid === pid) {
+                assert(start != null)
+                end = e.ts+e.dur
+                break loop
             }
+            break
         }
-
-        assert(start != null, 'Did not found starting user event')
-        assert(end != null, 'Did not found ending commit event')
-
-        let duration = (end-start) / 1000
-        
-        console.log({
-            start,
-            end,
-            durations,
-            duration,
-        })
     }
-}
 
-// read_results()
+    assert(start != null, 'Did not found starting user event')
+    assert(end != null,   'Did not found ending commit event')
+
+    return end-start
+}
 
 
 main()
