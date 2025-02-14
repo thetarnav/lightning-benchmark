@@ -55,7 +55,19 @@ function assert(condition: boolean, msg?: string): asserts condition {
     if (!condition) throw new Error(msg || 'Assertion failed')
 }
 
-function serve() {
+function serve(options: {
+    prebuild: boolean,
+}) {
+
+    let prebuild_promise: Promise<void> | undefined
+
+    if (options.prebuild) {
+        let before = performance.now()
+        prebuild_promise = build_lightning_solid.build()
+        prebuild_promise.then(() => {
+            log('SERVE', 'Prebuilt in %oms', Math.round(performance.now()-before))
+        })
+    }
 
     async function handle_request(req: Request): Promise<Response> {
         
@@ -63,9 +75,13 @@ function serve() {
         
         // Rebuild on each request to /
         if (url.pathname === '/') {
-            let before = performance.now()
-            await build_lightning_solid.build()
-            log('SERVE', 'Built in %oms', Math.round(performance.now()-before))
+            if (options.prebuild) {
+                await prebuild_promise
+            } else {
+                let before = performance.now()
+                await build_lightning_solid.build()
+                log('SERVE', 'Built in %oms', Math.round(performance.now()-before))
+            }
         }
 
         // Handle / -> /index.html
@@ -108,6 +124,7 @@ function serve() {
 
 async function main() {
 
+    // Parse config args
     let args = util.parseArgs({
         options: {
             'throttling': {
@@ -140,7 +157,9 @@ async function main() {
     let run_count      = Number(args.values['runs'])
 
     // Server
-    const server = serve()
+    const server = serve({
+        prebuild: true,
+    })
 
     // Browser
     const browser = await pw.chromium.launch({
