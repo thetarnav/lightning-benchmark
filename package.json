@@ -2,6 +2,11 @@
     "name": "lightning-auto-benchmark",
     "module": "index.ts",
     "type": "module",
+    "scripts": {
+        "serve": "bun ./index.ts serve",
+        "dev": "bun run serve",
+        "bench": "bun ./index.ts"
+    },
     "devDependencies": {
         "@types/bun": "latest"
     },
@@ -10,5 +15,10 @@
     },
     "dependencies": {
         "playwright-core": "^1.50.1"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "@lightningjs/renderer"
+        ]
     }
 }

@@ -124,6 +124,13 @@ function serve(options: {
 
 async function main() {
 
+    if (process.argv[2] === 'serve') {
+        serve({
+            prebuild: false,
+        })
+        return
+    }
+
     // Parse config args
     let args = util.parseArgs({
         options: {
@@ -133,7 +140,7 @@ async function main() {
             },
             'warmup': {
                 type: 'string',
-                default: '10'
+                default: '5'
             },
             'runs': {
                 type: 'string',

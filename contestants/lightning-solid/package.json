@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {},
   "dependencies": {
-    "@lightningjs/renderer": "^2.11.1",
-    "@lightningtv/solid": "^2.7.0",
+    "@lightningjs/renderer": "^2.12.1",
+    "@lightningtv/solid": "^2.7.3",
     "solid-js": "^1.9.4"
   },
   "devDependencies": {

@@ -1,6 +1,23 @@
-import {WebGlCoreRenderer} from '@lightningjs/renderer/webgl'
-import * as l from '@lightningtv/solid'
-import * as s from 'solid-js'
+import * as s             from 'solid-js'
+import * as l             from '@lightningtv/solid'
+import * as engine_webgl  from '@lightningjs/renderer/webgl'
+import * as engine_canvas from '@lightningjs/renderer/canvas'
+
+declare global {
+    interface Window {
+        bench: {
+            create:      () => void // creating 1000 items
+            create_many: () => void // creating 10000 items
+            update_all:  () => void // updating all items
+            update_some: () => void // updating every 10th item
+            update_one:  () => void // highlighting a selected item
+            swap:        () => void // swap 2 items
+            append:      () => void // append 1000 
+            remove_one:  () => void // remove one item
+            remove_all:  () => void // remove all items
+        }
+    }
+}
 
 let seed = 12345
 
@@ -20,73 +37,110 @@ function random_color(): string {
 const HEIGHT = 600
 const WIDTH  = 800
 
-function DirectUpdate(): s.JSX.Element {
+type Item = {
+    id:       string
+    x:        number
+    y:        number
+    color:    s.Accessor<string>
+    setColor: s.Setter<string>
+}
 
-    type Block = {
-        width:        number,
-        height:       number,
-        x:            number,
-        y:            number,
-        borderRadius: number,
-        color:        string,
+let last_id = 0
+
+function make_item(): Item {
+    const [color, setColor] = s.createSignal(random_color())
+    return {
+        id: String(++last_id),
+        x:  random_int(0, WIDTH  - 50),
+        y:  random_int(0, HEIGHT - 50),
+        color, setColor,
     }
+}
 
-    const [blocks, setBlocks] = s.createSignal<Block[]>([])
+function make_items(count: number): Item[] {
+    return Array.from({length: count}, make_item)
+}
 
-    function update() {
-        let blocks = []
-        for (let step = 0; step < 1000; step++) {
-            blocks.push({
-                width:        random_int(50, 100),
-                height:       random_int(50, 100),
-                x:            random_int(0, WIDTH),
-                y:            random_int(0, HEIGHT),
-                borderRadius: random_int(0, 50),
-                color:        random_color(),
-            })
-        }
-        setBlocks(blocks)
+function App(): s.JSX.Element {
+
+    const [items, setItems] = s.createSignal<Item[]>([])
+
+    window.bench = {
+        create() {
+            setItems(make_items(1000))
+        },
+        create_many() {
+            setItems(make_items(10000))
+        },
+        update_all() {
+            for (let item of items()) {
+                item.setColor(random_color())
+            }
+        },
+        update_some() {
+            let arr = items()
+            for (let i = 0; i < arr.length; i++) {
+                if (i % 10 === 0) {
+                    arr[i].setColor(random_color())
+                }
+            }
+        },
+        update_one() {
+            let arr = items()
+            arr[random_int(0, arr.length-1)].setColor(random_color())
+        },
+        swap() {
+            let arr = items().slice()
+            let a = random_int(0, arr.length-1)
+            let b = random_int(0, arr.length-1)
+            ;[arr[a], arr[b]] = [arr[b], arr[a]]
+            setItems(arr)
+        },
+        append() {
+            setItems(items().concat(make_items(1000)))
+        },
+        remove_all() {
+            setItems([])
+        },
+        remove_one() {
+            let arr = items().slice()
+            arr.splice(random_int(0, arr.length-1), 1)
+            setItems(arr)
+        },
     }
-
-    function clear() {
-        setBlocks([])
-    }
-
-    window.addEventListener('keypress', e => {
-        switch (e.key) {
-        case 'R':     clear()  ;break
-        case 'Enter': update() ;break
-        }
-    })
 
     return (
-        <l.View style={{color: l.hexColor('#f0f0f0')}}>
-            <s.Index each={blocks()}>
-            {(item) => (
-                <node
-                    x={item().x}
-                    y={item().y}
-                    width={item().width}
-                    height={item().height}
-                    color={item().color}
-                    effects={{radius: {radius: item().borderRadius}}}
-                />
+        <l.View
+            height={HEIGHT}
+            width={WIDTH}
+        >
+            <l.For each={items()}>
+            {item => (
+                <l.View
+                    ref={console.log}
+                    x={item.x}
+                    y={item.y}
+                    width={50}
+                    height={50}
+                    color={item.color()}
+                >
+                    <l.Text>{item.id}</l.Text>
+                </l.View>
             )}
-            </s.Index>
+            </l.For>
         </l.View>
     )
 }
 
-l.Config.debug = false
-l.Config.fontSettings.fontFamily = 'Ubuntu'
-l.Config.fontSettings.color = 0xffffffff
-l.Config.rendererOptions = {
-    //coreExtensionModule: coreExtensionModuleUrl,
+l.Config.fontSettings.fontFamily = 'sans-serif'
+l.Config.fontSettings.fontSize   = 22
+l.Config.rendererOptions         = {
+    appHeight:       HEIGHT,
+    appWidth:        WIDTH,
     numImageWorkers: 2,
-    inspector: false,
-    renderEngine: WebGlCoreRenderer,
-    fontEngines: [],
-    // deviceLogicalPixelRatio: 1
+    inspector:       false,
+    renderEngine:    engine_webgl.WebGlCoreRenderer,
+    fontEngines:     [engine_canvas.CanvasTextRenderer],
 }
 
-l.createRenderer().render(() => <DirectUpdate/>)
+l.createRenderer().render(() => <App/>)
