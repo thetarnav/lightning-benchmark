@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "bun",
+            "request": "launch",
+            "name": "Run run index.ts",
+            "program": "index.ts",
+            "cwd": "${workspaceFolder}",
+        }
+    ]
+}
