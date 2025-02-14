@@ -14,7 +14,7 @@ function force_gc(page: pw.Page): Promise<void> {
     return page.evaluate('window.gc({type: "major", execution: "sync", flavor: "last-resort"})')
 }
 
-function set_cpu_throttling(client: pw.CDPSession, rate: number) {
+function set_cpu_slowdown(client: pw.CDPSession, rate: number) {
     return client.send('Emulation.setCPUThrottlingRate', {rate})
 }
 
@@ -127,7 +127,7 @@ async function main() {
     // Parse config args
     let args = util.parseArgs({
         options: {
-            'throttling': {
+            'slowdown': {
                 type: 'string',
                 default: '20'
             },
@@ -152,9 +152,9 @@ async function main() {
         }
     }
 
-    let cpu_throttling = Number(args.values['throttling'])
-    let warmup_count   = Number(args.values['warmup'])
-    let run_count      = Number(args.values['runs'])
+    let cpu_slowdown = Number(args.values['slowdown'])
+    let warmup_count = Number(args.values['warmup'])
+    let run_count    = Number(args.values['runs'])
 
     // Server
     const server = serve({
@@ -208,11 +208,11 @@ async function main() {
         }
         log('BENCH', '[%d] Warmup done', run_i)
     
-        // CPU Throttling
+        // CPU Slowdown
         await sleep(50)
         await force_gc(page)
-        await set_cpu_throttling(client, cpu_throttling)
-        log('BENCH', `[%d] CPU Throttling ${cpu_throttling} enabled`, run_i)
+        await set_cpu_slowdown(client, cpu_slowdown)
+        log('BENCH', `[%d] CPU Slowdown ${cpu_slowdown} enabled`, run_i)
     
         // Start Tracing
         await browser.startTracing(page, {
@@ -227,7 +227,7 @@ async function main() {
         // End Test
         // await sleep(100)
         let trace_result = await browser.stopTracing()
-        await set_cpu_throttling(client, 1)
+        await set_cpu_slowdown(client, 1)
     
         
         let tracefile = trace.parse_trace_events_file(utf8_decode(trace_result))
