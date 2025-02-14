@@ -1,4 +1,5 @@
 import * as path from 'node:path'
+import * as util from 'node:util'
 import * as bun  from 'bun'
 import * as pw   from 'playwright-core'
 
@@ -7,11 +8,6 @@ import * as build_lightning_solid from './contestants/lightning-solid/build.ts'
 import * as trace from './trace_events.ts'
 
 const lightning_solid_dir = path.join(import.meta.dir, 'contestants', 'lightning-solid')
-
-
-const CPU_THROTTLING = 20
-const WARMUP_COUNT   = 10
-const TEST_COUNT     = 20
 
 
 function force_gc(page: pw.Page): Promise<void> {
@@ -112,6 +108,37 @@ function serve() {
 
 async function main() {
 
+    let args = util.parseArgs({
+        options: {
+            'throttling': {
+                type: 'string',
+                default: '20'
+            },
+            'warmup': {
+                type: 'string',
+                default: '10'
+            },
+            'runs': {
+                type: 'string',
+                default: '20',
+            },
+        },
+    })
+
+    {
+        let max_key_len = 0
+        for (let key in args.values) {
+            max_key_len = Math.max(max_key_len, key.length)
+        }
+        for (let [key, value] of Object.entries(args.values)) {
+            log('BENCH', '--%s %o', key.padEnd(max_key_len, ' '), value)
+        }
+    }
+
+    let cpu_throttling = Number(args.values['throttling'])
+    let warmup_count   = Number(args.values['warmup'])
+    let run_count      = Number(args.values['runs'])
+
     // Server
     const server = serve()
 
@@ -129,11 +156,11 @@ async function main() {
     let total_duration = 0
 
     // Benchmark
-    for (let bench_i = 0; bench_i < TEST_COUNT; bench_i++) {
+    for (let run_i = 0; run_i < run_count; run_i++) {
 
         // Page
         const page = await browser.newPage()
-        log('BENCH', '[%d] Page created', bench_i)
+        log('BENCH', '[%d] Page created', run_i)
     
         // Console messages
         page.on('console', msg => {
@@ -149,24 +176,24 @@ async function main() {
         
         // CDP Session
         const client = await page.context().newCDPSession(page)
-        log('BENCH', '[%d] CDP session created', bench_i)
+        log('BENCH', '[%d] CDP session created', run_i)
     
         // Website
         await page.goto(server.url.toString(), {waitUntil: 'networkidle'})
-        log('BENCH', `[%d] Website ${ANSI_BLUE}${server.url}${ANSI_RESET} loaded`, bench_i)
+        log('BENCH', `[%d] Website ${ANSI_BLUE}${server.url}${ANSI_RESET} loaded`, run_i)
     
         // Warmup
-        for (let warmup_i = 0; warmup_i < WARMUP_COUNT; warmup_i++) {
+        for (let warmup_i = 0; warmup_i < warmup_count; warmup_i++) {
             await page.keyboard.press('Enter')    
             await page.keyboard.press('R')    
         }
-        log('BENCH', '[%d] Warmup done', bench_i)
+        log('BENCH', '[%d] Warmup done', run_i)
     
         // CPU Throttling
         await sleep(50)
         await force_gc(page)
-        await set_cpu_throttling(client, CPU_THROTTLING)
-        log('BENCH', `[%d] CPU Throttling ${CPU_THROTTLING} enabled`, bench_i)
+        await set_cpu_throttling(client, cpu_throttling)
+        log('BENCH', `[%d] CPU Throttling ${cpu_throttling} enabled`, run_i)
     
         // Start Tracing
         await browser.startTracing(page, {
@@ -188,7 +215,7 @@ async function main() {
         let duration = get_duration_from_tracefile(tracefile)
         total_duration += duration
         
-        log('BENCH', `[%d] Test ended, took %oms`, bench_i, ns_to_ms(duration))
+        log('BENCH', `[%d] Run ended, took %oms`, run_i, ns_to_ms(duration))
     
         // For mem tests
         // await client.send("Performance.enable");
@@ -199,7 +226,7 @@ async function main() {
         page.close()
     }
 
-    log('BENCH', `All tests done took %oms / %o = %oms avg`, ns_to_ms(total_duration), TEST_COUNT, ns_to_ms(total_duration/TEST_COUNT))
+    log('BENCH', `All runs done took %oms / %o = %oms avg`, ns_to_ms(total_duration), run_count, ns_to_ms(total_duration/run_count))
     
     // End
     browser.close()
