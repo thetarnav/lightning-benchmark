@@ -141,12 +141,15 @@ function App(): s.JSX.Element {
 l.Config.fontSettings.fontFamily = 'sans-serif'
 l.Config.fontSettings.fontSize   = 22
 l.Config.rendererOptions         = {
-    appHeight:       HEIGHT,
-    appWidth:        WIDTH,
-    numImageWorkers: 2,
-    inspector:       false,
-    renderEngine:    engine_webgl.WebGlCoreRenderer,
-    fontEngines:     [engine_canvas.CanvasTextRenderer],
+    appHeight:                  HEIGHT,
+    appWidth:                   WIDTH,
+    renderEngine:               engine_webgl.WebGlCoreRenderer,
+    fontEngines:                [engine_canvas.CanvasTextRenderer],
+    inspector:                  false,
+    // Disables splitting texture processing to multiple frames
+    textureProcessingTimeLimit: Number.MAX_SAFE_INTEGER,
 }
 
-l.createRenderer().render(() => <App/>)
+const renderer = l.createRenderer()
+
+renderer.render(() => <App/>)
