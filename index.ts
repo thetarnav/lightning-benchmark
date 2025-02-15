@@ -51,8 +51,13 @@ function error(topic: string, msg: string, ...args: any[]): void {
     console.error(`${ANSI_RED}[${_log_pad_topic(topic)}]: ${ANSI_RESET}${msg}`, ...args)
 }
 
-function assert(condition: boolean, msg?: string): asserts condition {
-    if (!condition) throw new Error(msg || 'Assertion failed')
+function assert(condition: boolean, msg?: string, ...args: any[]): asserts condition {
+    if (!condition) {
+        throw new Error(msg == null
+            ? 'Assertion failed'
+            : util.format('Assertion failed: ' + msg, ...args)
+        )
+    }
 }
 
 function serve(options: {
@@ -158,8 +163,70 @@ function parse_config_args() {
     return config
 }
 
+type Test_Case = {
+    name:  string,
+    init:  (page: pw.Page) => void | Promise<void>
+    run:   (page: pw.Page) => void | Promise<void>
+    clear: (page: pw.Page) => void | Promise<void>
+}
+
+async function click(page: pw.Page, selector: string): Promise<void> {
+    let elem = await page.$(selector)
+    assert(elem != null, 'Element $(%s) was not found', selector)
+    await elem.click()
+    await elem.dispose()
+}
+
+const test_cases: Test_Case[] = [{
+    name:  'create',
+    init:  page => {},
+    run:   page => click(page, '#create'),
+    clear: page => click(page, '#remove_all'),
+}, {
+    name:  'create_many',
+    init:  page => {},
+    run:   page => click(page, '#create_many'),
+    clear: page => click(page, '#remove_all'),
+}, {
+    name:  'update_all',
+    init:  page => click(page, '#create'),
+    run:   page => click(page, '#update_all'),
+    clear: page => click(page, '#remove_all'),
+}, {
+    name:  'update_some',
+    init:  page => click(page, '#create'),
+    run:   page => click(page, '#update_some'),
+    clear: page => click(page, '#remove_all'),
+}, {
+    name:  'update_one',
+    init:  page => click(page, '#create'),
+    run:   page => click(page, '#update_one'),
+    clear: page => click(page, '#remove_all'),
+}, {
+    name:  'swap',
+    init:  page => click(page, '#create'),
+    run:   page => click(page, '#swap'),
+    clear: page => click(page, '#remove_all'),
+}, {
+    name:  'append',
+    init:  page => click(page, '#create'),
+    run:   page => click(page, '#append'),
+    clear: page => click(page, '#remove_all'),
+}, {
+    name:  'remove_one',
+    init:  page => click(page, '#create'),
+    run:   page => click(page, '#remove_one'),
+    clear: page => click(page, '#remove_all'),
+}, {
+    name:  'remove_all',
+    init:  page => click(page, '#create'),
+    run:   page => click(page, '#remove_all'),
+    clear: page => {},
+}]
+
 async function main() {
 
+    // $: bun run serve
     if (process.argv[2] === 'serve') {
         serve({
             prebuild: false,
@@ -186,84 +253,94 @@ async function main() {
         ],
     })
 
-    let total_duration = 0
+    // Benchmark = all test cases * all runs
 
-    // Benchmark
-    for (let run_i = 0; run_i < config.runs; run_i++) {
+    for (let test_case of test_cases) {
 
-        // Page
-        const page = await browser.newPage()
-        log('BENCH', '[%d] Page created', run_i)
+        let total_duration = 0
     
-        // Console messages
-        page.on('console', msg => {
-            let type = msg.type()
-            let color = ANSI_WHITE
-            switch (type) {
-            case 'error':   color = ANSI_RED    ;break
-            case 'warning': color = ANSI_YELLOW ;break
-            case 'debug':   color = ANSI_BLUE   ;break
+        for (let run_i = 0; run_i < config.runs; run_i++) {
+    
+            // Page
+            const page = await browser.newPage()
+            log('BENCH', `${ANSI_GRAY}%s[%d]${ANSI_RESET} Page created`, test_case.name, run_i)
+        
+            // Console messages
+            page.on('console', msg => {
+                let type = msg.type()
+                let color = ANSI_WHITE
+                switch (type) {
+                case 'error':   color = ANSI_RED    ;break
+                case 'warning': color = ANSI_YELLOW ;break
+                case 'debug':   color = ANSI_BLUE   ;break
+                }
+                log('PAGE', `${color}[${type}]:${ANSI_RESET} ${msg.text()}`)
+            })
+            
+            // CDP Session
+            const client = await page.context().newCDPSession(page)
+            log('BENCH', `${ANSI_GRAY}%s[%d]${ANSI_RESET} CDP session created`,
+                test_case.name, run_i)
+        
+            // Website
+            await page.goto(server.url.toString(), {waitUntil: 'networkidle'})
+            log('BENCH', `${ANSI_GRAY}%s[%d]${ANSI_RESET} Website ${ANSI_BLUE}%s${ANSI_RESET} loaded`,
+                test_case.name, run_i, server.url)
+        
+            // Warmup
+            await test_case.init(page)
+            for (let warmup_i = 0; warmup_i < config.warmup; warmup_i++) {
+                await test_case.run(page)
             }
-            log('PAGE', `${color}[${type}]:${ANSI_RESET} ${msg.text()}`)
-        })
+            await test_case.clear(page)
+
+            log('BENCH', `${ANSI_GRAY}%s[%d]${ANSI_RESET} Warmup done`,
+                test_case.name, run_i)
         
-        // CDP Session
-        const client = await page.context().newCDPSession(page)
-        log('BENCH', '[%d] CDP session created', run_i)
-    
-        // Website
-        await page.goto(server.url.toString(), {waitUntil: 'networkidle'})
-        log('BENCH', `[%d] Website ${ANSI_BLUE}%s${ANSI_RESET} loaded`, run_i, server.url)
-    
-        // Warmup
-        for (let warmup_i = 0; warmup_i < config.warmup; warmup_i++) {
-            await page.keyboard.press('Enter')    
-            await page.keyboard.press('R')    
+            // Test
+
+            await test_case.init(page)
+
+            await set_cpu_slowdown(client, config.slowdown)
+            await browser.startTracing(page, {
+                screenshots: false,
+                categories:  trace_categories_to_get_duration,
+            })
+            await sleep(50)
+            await force_gc(page)
+        
+            await test_case.run(page)
+
+            await page.evaluate('new Promise(r => requestAnimationFrame(r))') // Ensures commit trace event
+        
+            // End
+            let trace_result = await browser.stopTracing()
+
+            await set_cpu_slowdown(client, 1)
+            
+            let tracefile = trace.parse_trace_events_file(utf8_decode(trace_result))
+            let duration = get_duration_from_tracefile(tracefile)
+            total_duration += duration
+            
+            log('BENCH', `${ANSI_GRAY}%s[%d]${ANSI_RESET} Run ended, took %oms`,
+                test_case.name, run_i, ns_to_ms(duration))
+        
+            await page.close()
         }
-        log('BENCH', '[%d] Warmup done', run_i)
     
-        // CPU Slowdown
-        await sleep(50)
-        await force_gc(page)
-        await set_cpu_slowdown(client, config.slowdown)
-        log('BENCH', `[%d] CPU Slowdown %o enabled`, run_i, config.slowdown)
-    
-        // Start Tracing
-        await browser.startTracing(page, {
-            screenshots: false,
-            categories:  trace_categories_to_get_duration,
-        })
-    
-        // Run Test
-        await page.keyboard.press('Enter')
-        await page.evaluate('new Promise(r => requestAnimationFrame(r))') // Ensures commit trace event
-    
-        // End Test
-        let trace_result = await browser.stopTracing()
-        await set_cpu_slowdown(client, 1)
-    
-        
-        let tracefile = trace.parse_trace_events_file(utf8_decode(trace_result))
-        let duration = get_duration_from_tracefile(tracefile)
-        total_duration += duration
-        
-        log('BENCH', `[%d] Run ended, took %oms`, run_i, ns_to_ms(duration))
-    
-        // For mem tests
-        // await client.send("Performance.enable");
-        // let result = ((await page.evaluate("performance.measureUserAgentSpecificMemory()")) as any).bytes / 1024 / 1024
-        // console.log('mem', result)
-    
-        // End
-        page.close()
+        log('BENCH', `%s: All runs done took %oms / %o = %oms avg`,
+            test_case.name, ns_to_ms(total_duration), config.runs, ns_to_ms(total_duration/config.runs))
     }
 
-    log('BENCH', `All runs done took %oms / %o = %oms avg`, ns_to_ms(total_duration), config.runs, ns_to_ms(total_duration/config.runs))
     
     // End
-    browser.close()
-    server.stop(true)
+    await browser.close()
+    await server.stop(true)
 }
+
+// For mem tests
+// await client.send("Performance.enable");
+// let result = ((await page.evaluate("performance.measureUserAgentSpecificMemory()")) as any).bytes / 1024 / 1024
 
 const trace_categories_to_get_duration: trace.Category[] = [
     // EventDispatch
@@ -289,8 +366,8 @@ function get_duration_from_tracefile(tracefile: trace.Tracefile): number {
 
         switch (e.name) {
         case 'EventDispatch':
-            if (e.args.data?.type === 'keypress') {
-                assert(start == null || pid == null, 'Multiple keypress events')
+            if (e.args.data?.type === 'click') {
+                assert(start == null || pid == null, 'Multiple click events')
                 start = e.ts
                 pid   = e.pid
             }

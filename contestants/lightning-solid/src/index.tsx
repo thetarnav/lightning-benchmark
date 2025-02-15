@@ -117,7 +117,6 @@ function App(): s.JSX.Element {
             <l.For each={items()}>
             {item => (
                 <l.View
-                    ref={console.log}
                     x={item.x}
                     y={item.y}
                     width={50}
