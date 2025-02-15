@@ -311,6 +311,9 @@ async function main() {
         
             await test_case.run(page)
 
+            // TODO
+            // how to check when the rendering actually stopped
+            // when it is spread over multiple animation frames
             await page.evaluate('new Promise(r => requestAnimationFrame(r))') // Ensures commit trace event
         
             // End

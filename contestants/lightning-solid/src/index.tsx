@@ -73,17 +73,21 @@ function App(): s.JSX.Element {
             setItems(make_items(10000))
         },
         update_all() {
-            for (let item of items()) {
-                item.setColor(random_color())
-            }
+            s.batch(() => {
+                for (let item of items()) {
+                    item.setColor(random_color())
+                }
+            })
         },
         update_some() {
-            let arr = items()
-            for (let i = 0; i < arr.length; i++) {
-                if (i % 10 === 0) {
-                    arr[i].setColor(random_color())
+            s.batch(() => {
+                let arr = items()
+                for (let i = 0; i < arr.length; i++) {
+                    if (i % 10 === 0) {
+                        arr[i].setColor(random_color())
+                    }
                 }
-            }
+            })
         },
         update_one() {
             let arr = items()
@@ -110,24 +114,24 @@ function App(): s.JSX.Element {
     }
 
     return (
-        <l.View
+        <view
             height={HEIGHT}
             width={WIDTH}
         >
             <l.For each={items()}>
             {item => (
-                <l.View
+                <view
                     x={item.x}
                     y={item.y}
                     width={50}
                     height={50}
                     color={item.color()}
                 >
-                    <l.Text>{item.id}</l.Text>
-                </l.View>
+                    <text>{item.id}</text>
+                </view>
             )}
             </l.For>
-        </l.View>
+        </view>
     )
 }
 
