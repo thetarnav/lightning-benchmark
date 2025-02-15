@@ -10,7 +10,7 @@ declare global {
             create_many: () => void // creating 10000 items
             update_all:  () => void // updating all items
             update_some: () => void // updating every 10th item
-            update_one:  () => void // highlighting a selected item
+            select:      () => void // highlighting a selected item
             swap:        () => void // swap 2 items
             append:      () => void // append 1000 
             remove_one:  () => void // remove one item
@@ -65,6 +65,9 @@ function App(): s.JSX.Element {
 
     const [items, setItems] = s.createSignal<Item[]>([])
 
+    const [selected, setSelected] = s.createSignal('')
+    const isSelected = s.createSelector(selected)
+
     window.bench = {
         create() {
             setItems(make_items(1000))
@@ -89,9 +92,9 @@ function App(): s.JSX.Element {
                 }
             })
         },
-        update_one() {
+        select() {
             let arr = items()
-            arr[random_int(0, arr.length-1)].setColor(random_color())
+            setSelected(arr[random_int(0, arr.length-1)].id)
         },
         swap() {
             let arr = items().slice()
@@ -127,7 +130,7 @@ function App(): s.JSX.Element {
                     height={50}
                     color={item.color()}
                 >
-                    <text>{item.id}</text>
+                    <text color={isSelected(item.id) ? 0xFF0000FF : 0xFFFFFFFF}>{item.id}</text>
                 </view>
             )}
             </l.For>

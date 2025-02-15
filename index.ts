@@ -198,9 +198,9 @@ const test_cases: Test_Case[] = [{
     run:   page => click(page, '#update_some'),
     clear: page => click(page, '#remove_all'),
 }, {
-    name:  'update_one',
+    name:  'select',
     init:  page => click(page, '#create'),
-    run:   page => click(page, '#update_one'),
+    run:   page => click(page, '#select'),
     clear: page => click(page, '#remove_all'),
 }, {
     name:  'swap',
