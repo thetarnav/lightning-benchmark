@@ -122,16 +122,8 @@ function serve(options: {
     return server
 }
 
-async function main() {
+function parse_config_args() {
 
-    if (process.argv[2] === 'serve') {
-        serve({
-            prebuild: false,
-        })
-        return
-    }
-
-    // Parse config args
     let args = util.parseArgs({
         options: {
             'slowdown': {
@@ -149,19 +141,34 @@ async function main() {
         },
     })
 
-    {
-        let max_key_len = 0
-        for (let key in args.values) {
-            max_key_len = Math.max(max_key_len, key.length)
-        }
-        for (let [key, value] of Object.entries(args.values)) {
-            log('BENCH', '--%s %o', key.padEnd(max_key_len, ' '), value)
-        }
+    let config = {
+        slowdown: Number(args.values['slowdown']),
+        warmup:   Number(args.values['warmup']),
+        runs:     Number(args.values['runs']),
     }
 
-    let cpu_slowdown = Number(args.values['slowdown'])
-    let warmup_count = Number(args.values['warmup'])
-    let run_count    = Number(args.values['runs'])
+    let max_key_len = 0
+    for (let key in config) {
+        max_key_len = Math.max(max_key_len, key.length)
+    }
+    for (let [key, value] of Object.entries(config)) {
+        log('BENCH', '--%s %o', key.padEnd(max_key_len, ' '), value)
+    }
+
+    return config
+}
+
+async function main() {
+
+    if (process.argv[2] === 'serve') {
+        serve({
+            prebuild: false,
+        })
+        return
+    }
+
+    // Parse config args
+    let config = parse_config_args()
 
     // Server
     const server = serve({
@@ -182,7 +189,7 @@ async function main() {
     let total_duration = 0
 
     // Benchmark
-    for (let run_i = 0; run_i < run_count; run_i++) {
+    for (let run_i = 0; run_i < config.runs; run_i++) {
 
         // Page
         const page = await browser.newPage()
@@ -206,10 +213,10 @@ async function main() {
     
         // Website
         await page.goto(server.url.toString(), {waitUntil: 'networkidle'})
-        log('BENCH', `[%d] Website ${ANSI_BLUE}${server.url}${ANSI_RESET} loaded`, run_i)
+        log('BENCH', `[%d] Website ${ANSI_BLUE}%s${ANSI_RESET} loaded`, run_i, server.url)
     
         // Warmup
-        for (let warmup_i = 0; warmup_i < warmup_count; warmup_i++) {
+        for (let warmup_i = 0; warmup_i < config.warmup; warmup_i++) {
             await page.keyboard.press('Enter')    
             await page.keyboard.press('R')    
         }
@@ -218,8 +225,8 @@ async function main() {
         // CPU Slowdown
         await sleep(50)
         await force_gc(page)
-        await set_cpu_slowdown(client, cpu_slowdown)
-        log('BENCH', `[%d] CPU Slowdown ${cpu_slowdown} enabled`, run_i)
+        await set_cpu_slowdown(client, config.slowdown)
+        log('BENCH', `[%d] CPU Slowdown %o enabled`, run_i, config.slowdown)
     
         // Start Tracing
         await browser.startTracing(page, {
@@ -229,10 +236,9 @@ async function main() {
     
         // Run Test
         await page.keyboard.press('Enter')
-        await page.evaluate('new Promise(r => requestAnimationFrame(r))')
+        await page.evaluate('new Promise(r => requestAnimationFrame(r))') // Ensures commit trace event
     
         // End Test
-        // await sleep(100)
         let trace_result = await browser.stopTracing()
         await set_cpu_slowdown(client, 1)
     
@@ -252,7 +258,7 @@ async function main() {
         page.close()
     }
 
-    log('BENCH', `All runs done took %oms / %o = %oms avg`, ns_to_ms(total_duration), run_count, ns_to_ms(total_duration/run_count))
+    log('BENCH', `All runs done took %oms / %o = %oms avg`, ns_to_ms(total_duration), config.runs, ns_to_ms(total_duration/config.runs))
     
     // End
     browser.close()
