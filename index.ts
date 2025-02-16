@@ -238,12 +238,12 @@ async function main() {
     let config = parse_config_args()
 
     // Server
-    const server = serve({
+    let server = serve({
         prebuild: true,
     })
 
     // Browser
-    const browser = await pw.chromium.launch({
+    let browser = await pw.chromium.launch({
         channel:  'chrome',
         headless: false,
         args:     [
@@ -252,6 +252,8 @@ async function main() {
             '--enable-benchmarking',
         ],
     })
+
+    let bench_timestamp = Date.now()
 
     // Benchmark = all test cases * all runs
 
@@ -262,7 +264,7 @@ async function main() {
         for (let run_i = 0; run_i < config.runs; run_i++) {
     
             // Page
-            const page = await browser.newPage()
+            let page = await browser.newPage()
             log('BENCH', `${ANSI_GRAY}%s[%d]${ANSI_RESET} Page created`, test_case.name, run_i)
         
             // Console messages
@@ -278,7 +280,7 @@ async function main() {
             })
             
             // CDP Session
-            const client = await page.context().newCDPSession(page)
+            let client = await page.context().newCDPSession(page)
             log('BENCH', `${ANSI_GRAY}%s[%d]${ANSI_RESET} CDP session created`,
                 test_case.name, run_i)
         
@@ -303,6 +305,7 @@ async function main() {
 
             await set_cpu_slowdown(client, config.slowdown)
             await browser.startTracing(page, {
+                path:        `traces/${bench_timestamp}/${test_case.name}-${run_i}.json`,
                 screenshots: false,
                 categories:  trace_categories_to_get_duration,
             })

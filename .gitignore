@@ -1,4 +1,3 @@
 node_modules
-output
+/traces
 dist
-.vscode/settings.json
