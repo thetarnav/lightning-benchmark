@@ -355,13 +355,16 @@ const trace_categories_to_get_duration: trace.Category[] = [
     'disabled-by-default-devtools.timeline',
 ]
 
+/**
+@returns time in ns between the click event and the last commit event
+*/
 function get_duration_from_tracefile(tracefile: trace.Tracefile): number {
 
     let pid:   undefined | number
     let start: undefined | number
     let end:   undefined | number
 
-    loop: for (let e of tracefile.traceEvents) {
+    for (let e of tracefile.traceEvents) {
 
         if (typeof e.dur !== 'number' ||
             (start != null && e.ts < start) ||
@@ -382,7 +385,6 @@ function get_duration_from_tracefile(tracefile: trace.Tracefile): number {
             if (pid != null && e.pid === pid) {
                 assert(start != null)
                 end = e.ts+e.dur
-                break loop
             }
             break
         }
