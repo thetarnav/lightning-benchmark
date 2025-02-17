@@ -128,42 +128,6 @@ function serve(options: {
     return server
 }
 
-function parse_config_args() {
-
-    let args = util.parseArgs({
-        options: {
-            'slowdown': {
-                type: 'string',
-                default: '20'
-            },
-            'warmup': {
-                type: 'string',
-                default: '5'
-            },
-            'runs': {
-                type: 'string',
-                default: '20',
-            },
-        },
-    })
-
-    let config = {
-        slowdown: Number(args.values['slowdown']),
-        warmup:   Number(args.values['warmup']),
-        runs:     Number(args.values['runs']),
-    }
-
-    let max_key_len = 0
-    for (let key in config) {
-        max_key_len = Math.max(max_key_len, key.length)
-    }
-    for (let [key, value] of Object.entries(config)) {
-        log('BENCH', '--%s %o', key.padEnd(max_key_len, ' '), value)
-    }
-
-    return config
-}
-
 type Test_Case = {
     name:  string,
     init:  (page: pw.Page) => void | Promise<void>
@@ -225,6 +189,50 @@ const test_cases: Test_Case[] = [{
     clear: page => {},
 }]
 
+const test_names = test_cases.map(t => t.name)
+
+function parse_config_args() {
+
+    let args = util.parseArgs({
+        options: {
+            'slowdown': {
+                type:     'string',
+                default:  '20'
+            },
+            'warmup': {
+                type:     'string',
+                default:  '5'
+            },
+            'runs': {
+                type:     'string',
+                default:  '20',
+            },
+            'test': {
+                type:     'string',
+                default:  test_names,
+                multiple: true,
+            }
+        },
+    })
+
+    let config = {
+        slowdown: Number(args.values['slowdown']),
+        warmup:   Number(args.values['warmup']),
+        runs:     Number(args.values['runs']),
+        test:     args.values.test.flatMap(names => names.split(','))
+    }
+
+    let max_key_len = 0
+    for (let key in config) {
+        max_key_len = Math.max(max_key_len, key.length)
+    }
+    for (let [key, value] of Object.entries(config)) {
+        log('BENCH', '--%s %o', key.padEnd(max_key_len, ' '), value)
+    }
+
+    return config
+}
+
 async function main() {
 
     // $: bun run serve
@@ -259,6 +267,11 @@ async function main() {
     // Benchmark = all test cases * all runs
 
     for (let test_case of test_cases) {
+
+        if (!config.test.includes(test_case.name)) {
+            log('BENCH', `%s test skipped`, test_case.name)
+            continue
+        }
 
         let total_duration = 0
     
