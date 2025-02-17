@@ -1,0 +1,12 @@
+{
+  "name": "contestant-lightning-renderer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {},
+  "dependencies": {
+    "@lightningjs/renderer": "^2.12.1"
+  },
+  "devDependencies": {
+  }
+}

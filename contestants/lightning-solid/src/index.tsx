@@ -145,7 +145,6 @@ l.Config.rendererOptions         = {
     appWidth:                   WIDTH,
     renderEngine:               engine_webgl.WebGlCoreRenderer,
     fontEngines:                [engine_canvas.CanvasTextRenderer],
-    inspector:                  false,
     // Disables splitting texture processing to multiple frames
     textureProcessingTimeLimit: Number.MAX_SAFE_INTEGER,
 }

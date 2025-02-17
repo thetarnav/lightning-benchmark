@@ -19,6 +19,12 @@ importers:
         specifier: latest
         version: 1.2.2
 
+  contestants/lightning-renderer:
+    dependencies:
+      '@lightningjs/renderer':
+        specifier: ^2.12.1
+        version: 2.12.1
+
   contestants/lightning-solid:
     dependencies:
       '@lightningjs/renderer':

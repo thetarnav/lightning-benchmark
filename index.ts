@@ -3,7 +3,8 @@ import * as util from 'node:util'
 import * as bun  from 'bun'
 import * as pw   from 'playwright-core'
 
-import * as build_lightning_solid from './contestants/lightning-solid/build.ts'
+// import * as build_lightning_solid from './contestants/lightning-solid/build.ts'
+import * as build_lightning_solid from './contestants/lightning-renderer/build.ts'
 
 import * as trace from './trace_events.ts'
 
