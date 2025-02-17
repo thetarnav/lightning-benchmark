@@ -226,9 +226,11 @@ function parse_config_args() {
     for (let key in config) {
         max_key_len = Math.max(max_key_len, key.length)
     }
-    for (let [key, value] of Object.entries(config)) {
-        log('BENCH', '--%s %o', key.padEnd(max_key_len, ' '), value)
-    }
+
+    log('BENCH', '--%s %o', 'slowdown'.padEnd(max_key_len, ' '), config.slowdown)
+    log('BENCH', '--%s %o', 'warmup'  .padEnd(max_key_len, ' '), config.warmup)
+    log('BENCH', '--%s %o', 'runs'    .padEnd(max_key_len, ' '), config.runs)
+    log('BENCH', '--%s %o', 'test'    .padEnd(max_key_len, ' '), config.test.join(','))
 
     return config
 }
